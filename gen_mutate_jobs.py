@@ -50,7 +50,7 @@ with open('../jobs.list', 'a') as f:
                 tags += "%02d" % i
                 opts += "target%d=%s " % (n, targets[n])
                 opts += "new_res%d=%s " % (n, AA[mutations[n][i]])
-            cmd = "rosetta_scripts.mpi.macosclangrelease @mutate.flags -out:suffix _"
+            cmd = "rosetta_scripts.mpi.linuxgccrelease @mutate.flags -out:suffix _"
             cmd += tags
             cmd += " -parser:script_vars "
             cmd += opts
