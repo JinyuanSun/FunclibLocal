@@ -22,7 +22,8 @@
 
 本文中介绍的Funclib的开发思路是继承PROSS的核心思想，首先利用PSSM信息以及单点突变预测信息，将备选的序列空间大大降低，再进行序列的组合design，比起通常Rosetta中的全序列空间的模拟退火寻找近优解来说，通过穷举法搜索序列空间可以挖掘地更深。Funclib流程只考虑酶底物结合口袋附近的位点，并约束关键的活性侧链以及离子构象，可以将序列采样空间缩小到可以穷举的范围（几万），通过softrepack，repack，rotmin等常用mover结合，可以在几十秒内完成一个突变体的打分。
 
-将可耐受的突变获取作为候选突变类型（如PSSM>=-2, ddG<=5的单点突变），再对所有的位点进行穷举组合（至少3个突变，最多5-6个突变）计算ddG。最后通过再对所有结果进行排序和聚类得到突变体的建议。文章中他们展示了该方法可以成功的扩展若干模式酶的底物选择性。![funclib原理](/Users/kunkun/Library/Mobile Documents/com~apple~CloudDocs/markdown/图片/funclib/funclib原理.png)
+将可耐受的突变获取作为候选突变类型（如PSSM>=-2, ddG<=5的单点突变），再对所有的位点进行穷举组合（至少3个突变，最多5-6个突变）计算ddG。最后通过再对所有结果进行排序和聚类得到突变体的建议。文章中他们展示了该方法可以成功的扩展若干模式酶的底物选择性。 
+![funclib原理](https://ars.els-cdn.com/content/image/1-s2.0-S1097276518306932-fx1.jpg)
 
 
 
@@ -32,7 +33,7 @@
 
 以下将介绍如何使用RosettaScript来使用Funclib的方法。
 
-**本文所有的脚本均在github可下载，github地址:https://github.com/guyujun/FunclibLocal。**
+**本文所有的脚本均在github可下载，github地址:https://github.com/guyujun/FunclibLocal**
 
 **本方法不需要额外处理辅酶分子，所有在pdb中的底物、金属离子均会被保留。**
 
@@ -60,9 +61,9 @@ python make_flags.py example.pdb 18B,69B,93B 65B,13B
 
 ### 1 生成PSSM文件
 
-本文通过psiblast生成，也可以使用其他的在线服务器。FuncLib web-server上是通过考虑二级结构的比对，因此PSSM构建更加的精准。
+本文通过blast生成，也可以使用其他的在线服务器。FuncLib web-server上是通过考虑二级结构的比对，因此PSSM构建更加的精准。
 
-首先通过https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE=Proteins&PROGRAM=blastp&RUN_PSIBLAST=on输入序列进行数据库搜索。
+首先通过 [Blast](https://www.uniprot.org/blast/) 输入序列进行数据库搜索。建议使用Uniref90/50分别尝试，选择一个同源序列数量较为丰富同时不至于过度相似的结果。
 
 下载匹配到的所有序列, 并将下载的序列进行格式化:
 
@@ -70,7 +71,7 @@ python make_flags.py example.pdb 18B,69B,93B 65B,13B
 python gen_pssm.py $blast_fasta $protein_fasta
 ```
 
-- blast_fasta: 从ncbi-psiblast下载的同源序列结果4
+- blast_fasta: 从uniprot下载的同源序列结果
 - protein_fasta: 输入文件pdb的fasta序列
 
 运行完毕后产生result.pssm.
@@ -79,7 +80,7 @@ python gen_pssm.py $blast_fasta $protein_fasta
 
 ### 2 生成主链约束
 
-生成主链的约束，约束每个氨基酸Cα的坐标，生成的限制文件为example.cst。
+生成主链的约束，约束每个氨基酸Cα的坐标，生成的限制文件为bbCA.cst。
 
 ```shell
 sh make_csts.sh example.pdb > bbCA.cst
@@ -92,7 +93,7 @@ sh make_csts.sh example.pdb > bbCA.cst
 运行优化命令: 
 
 ```shell
-mpirun -np 4 rosetta_scripts.mpi.macosclangrelease @refine.flags -nstruct 100
+mpirun -np 26 rosetta_scripts.mpi.linuxgccrelease @refine.flags -nstruct 100
 ```
 
 输出的文件结果均在refinement文件夹中。
@@ -104,7 +105,7 @@ mpirun -np 4 rosetta_scripts.mpi.macosclangrelease @refine.flags -nstruct 100
 ### 4 单点突变扫描（单进程）
 
 ```shell
-rosetta_scripts.mpi.macosclangrelease @filterscan.flags
+rosetta_scripts.mpi.linuxgccrelease @filterscan.flags
 ```
 
 该过程会遍历计算每种突变类型的ddG值，结果会保存在resfiles文件夹的每个resfile中，不同的cutoff存到不同的文件里。可以根据需要修改resfile。
@@ -137,13 +138,16 @@ $level值与单点突变的ddG值截断值直接对应。选取对应的level值
 打开job.list，其中记录了每条穷举的突变计算命令，如:
 
 ```shell
-rosetta_scripts.mpi.macosclangrelease @mutate.flags -out:suffix _0000 -parser:script_vars target0=13B new_res0=TYR target1=65B new_res1=ILE 
+rosetta_scripts.mpi.linuxgccrelease @mutate.flags -out:suffix _0000 -parser:script_vars target0=13B new_res0=TYR target1=65B new_res1=ILE 
 ```
 
 运行其中的一条命令后，将获得组合突变的pdb结构以及其对应的打分。结果文件均储存在out文件夹中。文件分别为score_0000.sc，以及lowest_energy_0000_0001.pdb。
 
-如需并行计算job.list中所有的命令可使用，
+如需并行计算job.list中所有的命令可使用：
 
+```shell
+parallel --jobs $num_of_threads < job.list
+```
 
 
 最后通过再对所有结果进行排序和聚类得到突变体的建议。
