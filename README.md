@@ -8,7 +8,10 @@
 
 简介: 北京大学化学与分子工程学院-王初课题组特聘博士后
 
-
+本仓库进行了一些修改：
+1. 改变了序列搜索方法，原本使用psiblast
+2. `macosclangrelease -> linuxgccrelease`
+3. 添加`parallel`用于本地并行
 
 ## 零.前言
 
